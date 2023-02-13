@@ -34,7 +34,7 @@ terminal_memory_keyword = "mem"
 
 
 class UiTextAreaWidget(object):
-    def setup_ui(self, selector, textAreaUi):
+    def setup_ui(self, textAreaUi):
         textAreaUi.setObjectName("textAreaUi")
         textAreaUi.resize(600, 400)
         self.verticalLayout = QtWidgets.QVBoxLayout(textAreaUi)
@@ -49,7 +49,7 @@ class UiTextAreaWidget(object):
         self.verticalLayout_2.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout_2.setSpacing(0)
         self.verticalLayout_2.setObjectName("verticalLayout_2")
-        self.text_area = CustomQTextEdit(selector=selector, parent=self.widget)  # QWidget.QTextEdit
+        self.text_area = CustomQTextEdit(parent=self.widget)  # QWidget.QTextEdit
         self.text_area.setMinimumSize(QtCore.QSize(600, 400))
         # self.text_area.setMaximumSize(QtCore.QSize(600, 400))
         self.text_area.setStyleSheet("QTextEdit{\n"
@@ -75,20 +75,16 @@ class UiTextAreaWidget(object):
 
 class CustomQTextEdit(QtWidgets.QTextEdit):
 
-    def __init__(self, selector, parent=None):
+    def __init__(self, parent=None):
         super(CustomQTextEdit, self).__init__(parent=parent)
         self.__HOST = "127.0.0.1"
         self.__PORT = 65432
         self.sel = selectors.DefaultSelector()
-        '''
-        self.__socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.__socket.connect((self.__HOST, self.__PORT))
-        '''
+        self.message = libclient.Message(None, None, None, None)
         self.__successive_entries = []
         self.__displayed_entry_index = -1
         self.__i_regex = re.compile(r"in:.+:in")
         self.__o_regex = re.compile(r"out:.+:out")
-        self.message: libclient.Message
 
     def create_request(self, action, value):
         return dict(
@@ -216,8 +212,6 @@ class CustomQTextEdit(QtWidgets.QTextEdit):
     def __execute_command(self, command: str):
         entry = self.__parse_command_line(command)
         if len(entry[0][0]) != 0:
-            state = False
-            to_print = ""
             try:
                 if entry[0][0] == terminal_system_key_word:
                     # request = f"{entry[0][1]}:{entry[1].__str__()}:{entry[2].__str__()}"
@@ -225,18 +219,18 @@ class CustomQTextEdit(QtWidgets.QTextEdit):
                     # self.send_request_to_alice(bytes(request, "utf-8"))
                 elif entry[0][0] == terminal_media_keyword:
                     # request = f"{entry[0][1]}:{entry[1].__str__()}:{entry[2].__str__()}"
-                    self.send_request_to_alice(f"media/{entry[0][1]}", f"{entry[1].__str__()}:terminal")
+                    self.send_request_to_alice(f"get", f"media/{entry[0][1]}:{entry[1].__str__()}:terminal")
                     # self.send_request_to_alice(bytes(request, "utf-8"))
                 elif entry[0][0] == terminal_net__keyword:
                     # request = f"{entry[0][1]}:{entry[1].__str__()}:{entry[2].__str__()}"
-                    self.send_request_to_alice(f"net/{entry[0][1]}", f"{entry[1].__str__()}:terminal")
+                    self.send_request_to_alice(f"get", f"net/{entry[0][1]}:{entry[1].__str__()}:terminal")
                     # self.send_request_to_alice(bytes(request, "utf-8"))
                 elif entry[0][0] == terminal_memory_keyword:
                     # request = f"{entry[0][1]}:{entry[1].__str__()}:{entry[2].__str__()}"
-                    self.send_request_to_alice(f"memory/{entry[0][1]}", f"{entry[1].__str__()}:terminal")
+                    self.send_request_to_alice(f"get", f"mem/{entry[0][1]}:{entry[1].__str__()}:terminal")
                     # self.send_request_to_alice(bytes(request, "utf-8"))
                 else:
-                    self.set_error_text(f"{entry[0][0]} is not valid command family")
+                    self.set_error_text(f"{entry[0][0]} is not a valid command family")
                 if self.message.to_return[0]:   # if state
                     if self.message.to_return[1] != "":     # if to_print != "
                         if self.message.to_return[1].startswith(terminal_warning_indicator):
@@ -255,18 +249,14 @@ class CustomQTextEdit(QtWidgets.QTextEdit):
                 print(e)
         self.set_default_text()
         self.sel = selectors.DefaultSelector()
+        self.message = libclient.Message(None, None, None, None)
 
     def __parse_command_line(self, command):
         inp = self.__i_regex.findall(command)
-        print("inp1: ", inp)
         out = self.__o_regex.findall(command)
         if len(inp) != 0:
             inp = inp[0][3:len(inp[0])-3].split(" ")
-            print("inp2: ", inp)
         if len(out) != 0:
             out = out[0][4:len(out[0])-4].split(" ")
         args = command.split(" ")[:2]
-        print("args: ", args)
-        print("inp: ", inp)
-        print("out: ", out)
         return args, inp, out

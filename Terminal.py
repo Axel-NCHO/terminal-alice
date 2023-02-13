@@ -1,5 +1,4 @@
 import sys
-import selectors
 
 from PyQt5 import QtCore, QtWidgets, QtGui
 from terminalUi import UiTerminal
@@ -16,7 +15,6 @@ class Terminal(QtWidgets.QWidget, UiTerminal):
         self.setWindowIcon(QtGui.QIcon("terminal_icon.png"))
         self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
         self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
-        self.sel = selectors.DefaultSelector()
 
         self.tab_dict = dict()
         self.tab_id = 0
@@ -38,7 +36,7 @@ class Terminal(QtWidgets.QWidget, UiTerminal):
         tab = Tab()
         tab.set_id(self.tab_id)
         self.title_bar.insert_tab(tab)
-        text_area = TextArea(selector=self.sel, parent=self)
+        text_area = TextArea(parent=self)
         self.verticalLayout.addWidget(text_area)
 
         self.active_tab = self.tab_id
