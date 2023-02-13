@@ -5,9 +5,9 @@ from Components.TextArea.textAreaUi import UiTextAreaWidget
 
 class TextArea(QtWidgets.QWidget, UiTextAreaWidget):
 
-    def __init__(self, parent=None):
+    def __init__(self, selector, parent=None):
         super(TextArea, self).__init__(parent=parent)
-        self.setup_ui(self)
+        self.setup_ui(selector=selector, textAreaUi=self)
 
     def set_text(self, text: str):
         self.text_area.setText(text)

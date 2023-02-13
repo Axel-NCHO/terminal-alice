@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 import re
 import socket
+import selectors
+import traceback
+import types
 
 # Form implementation generated from reading ui file '.\textArea.ui'
 #
@@ -12,6 +15,7 @@ import socket
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 import threading
+import libclient
 
 
 user = "axel"
@@ -30,7 +34,7 @@ terminal_memory_keyword = "mem"
 
 
 class UiTextAreaWidget(object):
-    def setup_ui(self, textAreaUi):
+    def setup_ui(self, selector, textAreaUi):
         textAreaUi.setObjectName("textAreaUi")
         textAreaUi.resize(600, 400)
         self.verticalLayout = QtWidgets.QVBoxLayout(textAreaUi)
@@ -45,7 +49,7 @@ class UiTextAreaWidget(object):
         self.verticalLayout_2.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout_2.setSpacing(0)
         self.verticalLayout_2.setObjectName("verticalLayout_2")
-        self.text_area = CustomQTextEdit(self.widget)  # QWidget.QTextEdit
+        self.text_area = CustomQTextEdit(selector=selector, parent=self.widget)  # QWidget.QTextEdit
         self.text_area.setMinimumSize(QtCore.QSize(600, 400))
         # self.text_area.setMaximumSize(QtCore.QSize(600, 400))
         self.text_area.setStyleSheet("QTextEdit{\n"
@@ -71,24 +75,62 @@ class UiTextAreaWidget(object):
 
 class CustomQTextEdit(QtWidgets.QTextEdit):
 
-    def __init__(self, parent=None):
+    def __init__(self, selector, parent=None):
         super(CustomQTextEdit, self).__init__(parent=parent)
         self.__HOST = "127.0.0.1"
         self.__PORT = 65432
+        self.sel = selectors.DefaultSelector()
+        '''
         self.__socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.__socket.connect((self.__HOST, self.__PORT))
+        '''
         self.__successive_entries = []
         self.__displayed_entry_index = -1
         self.__i_regex = re.compile(r"in:.+:in")
         self.__o_regex = re.compile(r"out:.+:out")
+        self.message: libclient.Message
 
-    def send_request_to_alice(self, request):
-        self.__socket.sendall(request)
-        data = self.__socket.recv(1024)
-        print("Received from alice : ", data)
+    def create_request(self, action, value):
+        return dict(
+            type="text/json",
+            encoding="utf-8",
+            content=dict(action=action, value=value),
+        )
 
-    def close_connection_with_alice(self):
-        self.__socket.close()
+    def start_connection(self, request):
+        addr = (self.__HOST, self.__PORT)
+        print(f"Starting connection to {addr}")
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setblocking(False)
+        sock.connect_ex(addr)
+        events = selectors.EVENT_READ | selectors.EVENT_WRITE
+        self.message = libclient.Message(self.sel, sock, addr, request)
+        self.sel.register(sock, events, data=self.message)
+
+    def send_request_to_alice(self, action, value):
+        request = self.create_request(action, value)
+        self.start_connection(request)
+
+        try:
+            while True:
+                events = self.sel.select(timeout=1)
+                for key, mask in events:
+                    message = key.data
+                    try:
+                        message.process_events(mask)
+                    except Exception:
+                        print(
+                            f"Main: Error: Exception for {message.addr}:\n"
+                            f"{traceback.format_exc()}"
+                        )
+                        message.close()
+                # Check for a socket being monitored to continue.
+                if not self.sel.get_map():
+                    break
+        except KeyboardInterrupt:
+            print("Caught keyboard interrupt, exiting")
+        finally:
+            self.sel.close()
 
     def keyPressEvent(self, e: QtGui.QKeyEvent) -> None:
         if e.key() == QtCore.Qt.Key_Backspace:
@@ -178,36 +220,41 @@ class CustomQTextEdit(QtWidgets.QTextEdit):
             to_print = ""
             try:
                 if entry[0][0] == terminal_system_key_word:
-                    request = f"{entry[0][1]}:{entry[1].__str__()}:{entry[2].__str__()}"
-                    self.send_request_to_alice(bytes(request, "utf-8"))
+                    # request = f"{entry[0][1]}:{entry[1].__str__()}:{entry[2].__str__()}"
+                    self.send_request_to_alice(f"get", f"sys/{entry[0][1]}:{entry[1].__str__()}:terminal")
+                    # self.send_request_to_alice(bytes(request, "utf-8"))
                 elif entry[0][0] == terminal_media_keyword:
-                    request = f"{entry[0][1]}:{entry[1].__str__()}:{entry[2].__str__()}"
-                    self.send_request_to_alice(bytes(request, "utf-8"))
+                    # request = f"{entry[0][1]}:{entry[1].__str__()}:{entry[2].__str__()}"
+                    self.send_request_to_alice(f"media/{entry[0][1]}", f"{entry[1].__str__()}:terminal")
+                    # self.send_request_to_alice(bytes(request, "utf-8"))
                 elif entry[0][0] == terminal_net__keyword:
-                    request = f"{entry[0][1]}:{entry[1].__str__()}:{entry[2].__str__()}"
-                    self.send_request_to_alice(bytes(request, "utf-8"))
+                    # request = f"{entry[0][1]}:{entry[1].__str__()}:{entry[2].__str__()}"
+                    self.send_request_to_alice(f"net/{entry[0][1]}", f"{entry[1].__str__()}:terminal")
+                    # self.send_request_to_alice(bytes(request, "utf-8"))
                 elif entry[0][0] == terminal_memory_keyword:
-                    request = f"{entry[0][1]}:{entry[1].__str__()}:{entry[2].__str__()}"
-                    self.send_request_to_alice(bytes(request, "utf-8"))
+                    # request = f"{entry[0][1]}:{entry[1].__str__()}:{entry[2].__str__()}"
+                    self.send_request_to_alice(f"memory/{entry[0][1]}", f"{entry[1].__str__()}:terminal")
+                    # self.send_request_to_alice(bytes(request, "utf-8"))
                 else:
                     self.set_error_text(f"{entry[0][0]} is not valid command family")
-                if state:
-                    if to_print != "":
-                        if to_print.startswith(terminal_warning_indicator):
-                            self.set_warning_text(to_print)
+                if self.message.to_return[0]:   # if state
+                    if self.message.to_return[1] != "":     # if to_print != "
+                        if self.message.to_return[1].startswith(terminal_warning_indicator):
+                            self.set_warning_text(self.message.to_return[1])
                         else:
-                            self.setText(to_print)
+                            self.setText(self.message.to_return[1])
                     self.setText("status: [OK]")
                 else:
-                    if to_print != "":
-                        if to_print.startswith(terminal_error_indicator):
-                            self.set_error_text(to_print)
+                    if self.message.to_return[1] != "":
+                        if self.message.to_return[1].startswith(terminal_error_indicator):
+                            self.set_error_text(self.message.to_return[1])
                         else:
-                            self.setText(to_print)
+                            self.setText(self.message.to_return[1])
                     self.setText("status: [FAILED]")
             except OSError as e:
                 print(e)
         self.set_default_text()
+        self.sel = selectors.DefaultSelector()
 
     def __parse_command_line(self, command):
         inp = self.__i_regex.findall(command)
