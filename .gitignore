@@ -1,1 +1,5 @@
 .idea
+__pycache__
+Components/Tab/__pycache__
+Components/TextArea/__pycache__
+Components/TitleBar/__pycache__
